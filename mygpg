@@ -1,0 +1,17 @@
+#!/bin/bash
+
+if [ $# -ne 1 ]; then
+	    echo ": To use the script for decrypting .gpg files, you must specify the name of the file you want to unlock."
+	        exit 1
+fi
+
+file_name=$1
+new_file_name="${file_name%.gpg}"
+
+# Check whether the specified file exists and perform decryption
+if [ -e "$file_name" ]; then
+	    echo "File '$file_name' exists."
+            gpg --output "$new_file_name" --decrypt "$file_name"
+    else
+	        echo "File '$file_name' does not exist."
+fi

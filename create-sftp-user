@@ -1,0 +1,150 @@
+#!/bin/bash
+
+tmp_file="/tmp/last-run-create-sftp-user.txt"
+
+# Check whether the script was run with the --revoke parameter
+if [[ "$1" == "--revoke" ]]; then
+    echo "Running the script in recovery mode. It will undo the changes that would have been applied without the --revoke parameter."
+
+    if [ -f "$tmp_file" ]; then
+        echo "File $tmp_file exists."
+        timedate=$(head -n 1 "$tmp_file")
+        user_name=$(sed -n 2p "$tmp_file")
+        sftp_directory=$(sed -n 3p "$tmp_file")
+
+        echo
+        echo "Username: $user_name"
+        echo "Directory in root: $sftp_directory"
+        read -p "Run the rollback process? [Y/n]" user_input
+
+        # If the user answers "N" or "n", exit the script
+        if [[ "$user_input" =~ ^[Nn]$ ]]; then
+           echo "The user determined that the retrieved values are incorrect and does not want to execute --revoke. Exiting the script."
+           exit 0
+        fi
+
+        # Set the default answer to "y"
+        user_input=${user_input:-y}
+
+        echo "Deleting user $user_name"
+        sudo userdel "$user_name"
+        sleep 1
+
+        echo "Deleting group $user_name"
+        sudo groupdel "$user_name"
+        sleep 1
+
+        echo "Deleting directory in root $sftp_directory"
+        sudo rm -R /"$sftp_directory"
+        sleep 1
+
+        echo "The Match User $user_name section still needs to be removed from /etc/ssh/sshd_config. Please do this manually."
+        sleep 1
+
+        echo "The script has finished. Exiting the program."
+        exit 0
+
+    else
+        echo "File $temp_file does not exist. Exiting the script."
+        exit 1
+    fi
+fi
+
+
+echo "Script for creating a system user for SFTP, linking a directory, and adding an entry to sshd_config. Changes can be reverted by running the script with the --revoke parameter. Please enter the required parameters."
+
+read -p "Username: " user_name
+sudo adduser --system --no-create-home --group "$user_name"
+
+#echo "Creating the appropriate group and adding user $user_name to it..."
+#sudo groupadd "$user_name"
+#sudo usermod -G "$user_name" "$user_name"
+
+
+echo "Set the user's password in the dialog..."
+sudo passwd "$user_name"
+
+read -p "Directory name in root: " sftp_directory
+
+sudo mkdir /"$sftp_directory"
+
+# Create a record of the last entered values in the application, used when running the program with the --revoke parameter
+timedate=$(date)
+radek1="$timedate"
+radek2="$user_name"
+radek3="$sftp_directory"
+
+# Create the file and write the text to it
+echo -e "$radek1\n$radek2\n$radek3" > "$tmp_file"
+
+
+while true; do
+    read -p "Do you want to create a new subdirectory? (Y/n): " user_input
+
+    # If the user answers "N" or "n", exit the loop
+    if [[ "$user_input" =~ ^[Nn]$ ]]; then
+        echo "The user does not want to create another subdirectory. Continuing."
+        break
+    fi
+
+    # Set the default answer to "y"
+    user_input=${user_input:-y}
+
+    # Ask the user for the directory name
+    read -p "Enter the directory name: " nazev_slozky
+
+    # Create a directory with the specified name
+    sudo mkdir -p /"$sftp_directory"/"$nazev_slozky"
+done
+echo
+sleep 1
+
+echo "Setting permissions for subdirectories..."
+sudo chown -R "$user_name":"$user_name" /"$sftp_directory"/*
+sleep 1
+
+echo "Setting the SFTP directory as the user's home directory..."
+sudo usermod -d /"$sftp_directory" "$user_name"
+sleep 1
+
+echo "Disabling shell access for user $user_name..."
+sudo usermod -s /sbin/nologin "$user_name"
+sleep 1
+
+echo "Adding configuration to sshd_config..."
+sudo bash -c 'cat <<EOF >> "/etc/ssh/sshd_config"
+
+Match User '"$user_name"'
+     PasswordAuthentication yes
+     ChrootDirectory %h
+     X11Forwarding no
+     AllowTcpForwarding no
+     ForceCommand internal-sftp
+
+EOF'
+sleep 1
+
+echo "Restarting SSHD to apply the changes"
+sudo systemctl restart ssh
+sudo systemctl restart sshd
+sleep 1
+
+echo "The script has finished."
+echo
+sleep 3
+
+echo "If you need to bind the directory to another location, add an entry to /etc/fstab. For example:"
+echo
+echo "/var/www/kamzici	/kamzici-testovaci-web/public	none	defaults,bind	0	0"
+echo
+echo "Verify that it works by running sudo mount -a"
+echo
+sleep 1
+
+sudo id "$user_name"
+
+
+
+
+
+

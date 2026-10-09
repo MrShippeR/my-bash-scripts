@@ -1,0 +1,17 @@
+#!/bin/bash
+
+if [ $# -ne 1 ]; then
+    echo "Specify name of file you want to extract with first argument."
+    exit 1
+fi
+
+file_name=$1
+new_file_name="${file_name%.gpg}"
+
+if [ -e "$file_name" ]; then
+    gpg --output "$new_file_name" --decrypt "$file_name"
+    tar -xvzf "$new_file_name"
+    rm -r $new_file_name
+else
+    echo "File '$file_name' does not exist."
+fi

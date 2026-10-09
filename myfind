@@ -1,0 +1,9 @@
+#!/bin/bash
+
+if [ $# -ne 1 ]; then
+	    echo ": You must set parameter about what to search in files at current directory."
+	        exit 1
+fi
+
+
+grep -iRl "$1" ./
