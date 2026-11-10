@@ -21,13 +21,13 @@ if [[ ! -r "$CONFIG_FILE" ]]; then
 fi
 
 # Find device in configuration
-DEVICE_CONFIG=$(awk -F '\t' -v hostname="$HOSTNAME" '
+awk -F '\t' -v hostname="$HOSTNAME" '
     /^[[:space:]]*#/ || NF == 0 { next }
     $1 == hostname {
-        print $2, $3
+        print $3, $4
         exit
     }
-' "$CONFIG_FILE")
+'
 
 if [[ -z "$DEVICE_CONFIG" ]]; then
     echo "Error: Device '$HOSTNAME' not found in configuration."
