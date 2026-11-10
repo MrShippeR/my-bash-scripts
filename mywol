@@ -1,0 +1,68 @@
+
+#!/bin/bash
+
+set -u
+
+CONFIG_FILE="/opt/bin/my-bash-scripts/wol-clients.cfg"
+MAX_ATTEMPTS=3
+WAIT_INTERVAL=5
+WAIT_TIMEOUT=120
+
+if [[ $# -ne 1 ]]; then
+    echo "Usage: mywol <hostname>"
+    exit 1
+fi
+
+HOSTNAME="$1"
+
+if [[ ! -r "$CONFIG_FILE" ]]; then
+    echo "Error: Cannot read configuration file: $CONFIG_FILE"
+    exit 1
+fi
+
+# Find device in configuration
+DEVICE_CONFIG=$(awk -F '\t' -v hostname="$HOSTNAME" '
+    /^[[:space:]]*#/ || NF == 0 { next }
+    $1 == hostname {
+        print $2, $3
+        exit
+    }
+' "$CONFIG_FILE")
+
+if [[ -z "$DEVICE_CONFIG" ]]; then
+    echo "Error: Device '$HOSTNAME' not found in configuration."
+    exit 1
+fi
+
+read -r MAC IP <<< "$DEVICE_CONFIG"
+
+
+
+echo "Wake-on-LAN: $HOSTNAME ($MAC / $IP)"
+for ((attempt=1; attempt<=MAX_ATTEMPTS; attempt++)); do
+
+    echo
+    echo "Attempt $attempt/$MAX_ATTEMPTS"
+    wakeonlan "$MAC"
+    echo "Waiting for device to become online..."
+
+    elapsed=0
+    while (( elapsed < WAIT_TIMEOUT )); do
+
+        if ping -c 1 -W 2 "$IP" >/dev/null 2>&1; then
+            echo "Success: $HOSTNAME ($IP) is online!"
+            exit 0
+        fi
+
+        sleep "$WAIT_INTERVAL"
+        ((elapsed += WAIT_INTERVAL))
+
+    done
+
+    echo "Device did not respond within ${WAIT_TIMEOUT}s."
+
+done
+
+echo
+echo "Error: $HOSTNAME did not come online after $MAX_ATTEMPTS attempts."
+exit 1
