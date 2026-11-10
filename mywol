@@ -3,7 +3,8 @@
 
 set -u
 
-CONFIG_FILE="/opt/bin/my-bash-scripts/wol-clients.cfg"
+CONFIG_FILE="/home/shipper/opt/bin/my-bash-scripts/wol-clients.cfg"
+
 MAX_ATTEMPTS=3
 WAIT_INTERVAL=5
 WAIT_TIMEOUT=120
@@ -21,32 +22,34 @@ if [[ ! -r "$CONFIG_FILE" ]]; then
 fi
 
 # Find device in configuration
-awk -F '\t' -v hostname="$HOSTNAME" '
+DEVICE_CONFIG=$(awk -F '\t' -v hostname="$HOSTNAME" '
     /^[[:space:]]*#/ || NF == 0 { next }
     $1 == hostname {
-        print $3, $4
+        print $3 "\t" $4
         exit
     }
-'
+' "$CONFIG_FILE")
 
 if [[ -z "$DEVICE_CONFIG" ]]; then
     echo "Error: Device '$HOSTNAME' not found in configuration."
     exit 1
 fi
 
-read -r MAC IP <<< "$DEVICE_CONFIG"
-
-
+IFS=$'\t' read -r MAC IP <<< "$DEVICE_CONFIG"
 
 echo "Wake-on-LAN: $HOSTNAME ($MAC / $IP)"
+
 for ((attempt=1; attempt<=MAX_ATTEMPTS; attempt++)); do
 
     echo
     echo "Attempt $attempt/$MAX_ATTEMPTS"
+
     wakeonlan "$MAC"
+
     echo "Waiting for device to become online..."
 
     elapsed=0
+
     while (( elapsed < WAIT_TIMEOUT )); do
 
         if ping -c 1 -W 2 "$IP" >/dev/null 2>&1; then
