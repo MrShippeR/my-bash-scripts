@@ -3,7 +3,7 @@
 
 set -u
 
-CONFIG_FILE="/home/shipper/opt/bin/my-bash-scripts/wol-clients.cfg"
+CONFIG_FILE="/home/shipper/opt/bin/wol-clients.cfg"
 
 MAX_ATTEMPTS=3
 WAIT_INTERVAL=5
